@@ -1,0 +1,16 @@
+<html>
+<head><title>add </title></head>
+<body> 
+    <h1>add Page</h1>
+    <span>number 1 = </span><input id="n1" type="text">
+    <span>number 2 = </span><input id="n2" type="text">
+    <button onclick=newPage()>show result!</button>
+    <script>
+        function newPage()  {
+            n1 = document.getElementById("n1").value;
+            n2 = document.getElementById("n2").value;
+            window.open('http://54.180.83.124:8000/cgi-bin/adder?' + n1 + '&'+ n2)
+          }
+    </script>
+</body>
+</html>
