@@ -55,7 +55,6 @@ void delete_node(cache * target_cache, cache_node *delete_node){
 //         3. 데이터를 못 찾으면 0 반환 
 int find_cache(cache *target_cache, char *key, char *buf)
 {
-    printf("find_cache / key = %s!!!!\n", key);
     cache_node *start = target_cache->root;// 시작 노드 설정
     while(start != NULL){
         if(strcmp(start->key,key) == 0){ // 같은 키 값을 찾으면?
@@ -71,7 +70,6 @@ int find_cache(cache *target_cache, char *key, char *buf)
     return 0;
 }
 int print_cache(cache *target_cache){
-    printf("start print cache!\n");
     cache_node *start = target_cache->root;// 시작 노드 설정
     printf("cache size = %d\n", target_cache->size);
     printf("cache root = %s\n", target_cache->root);
