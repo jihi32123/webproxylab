@@ -1,5 +1,6 @@
 #!/bin/bash
-#
+#!/usr/bin/env python
+
 # driver.sh - This is a simple autograder for the Proxy Lab. It does
 #     basic sanity checks that determine whether or not the code
 #     behaves like a concurrent caching proxy. 
@@ -38,6 +39,7 @@ CACHE_LIST="tiny.c
             csapp.c"
 
 # The file we will fetch for various tests
+# FETCH_FILE="home.html"
 FETCH_FILE="home.html"
 
 #####
@@ -51,6 +53,7 @@ FETCH_FILE="home.html"
 function download_proxy {
     cd $1
     curl --max-time ${TIMEOUT} --silent --proxy $4 --output $2 $3
+    curl --silent --proxy http://localhost:8000/ --output home.html http://localhost:8080/
     (( $? == 28 )) && echo "Error: Fetch timed out after ${TIMEOUT} seconds"
     cd $HOME_DIR
 }
@@ -232,6 +235,7 @@ wait_for_port_use "${proxy_port}"
 # Tiny and via the proxy, and then comparing the results.
 numRun=0
 numSucceeded=0
+
 for file in ${BASIC_LIST}
 do
     numRun=`expr $numRun + 1`
@@ -249,6 +253,8 @@ do
     # Compare the two files
     echo "   Comparing the two files"
     diff -q ${PROXY_DIR}/${file} ${NOPROXY_DIR}/${file} &> /dev/null
+    diff -u ${PROXY_DIR}/${file} ${NOPROXY_DIR}/${file} &> /dev/null
+    
     if [ $? -eq 0 ]; then
         numSucceeded=`expr ${numSucceeded} + 1`
         echo "   Success: Files are identical."
@@ -298,7 +304,7 @@ wait_for_port_use "${proxy_port}"
 # Run a special blocking nop-server that never responds to requests
 nop_port=$(free_port)
 echo "Starting the blocking NOP server on port ${nop_port}"
-./nop-server.py ${nop_port} &> /dev/null &
+python3 nop-server.py ${nop_port} &> /dev/null &
 nop_pid=$!
 
 # Wait for the nop server to start in earnest

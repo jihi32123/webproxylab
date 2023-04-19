@@ -17,6 +17,13 @@ void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum, 
 		 char *shortmsg, char *longmsg);
 
+void sigchld_handler(int sig) //line:conc:echoserverp:handlerstart
+{
+    while (waitpid(-1, 0, WNOHANG) > 0)
+	;
+    return;
+} //line:conc:echoserverp:handlerend
+
 int main(int argc, char **argv) 
 {
     int listenfd, connfd;
@@ -26,19 +33,23 @@ int main(int argc, char **argv)
 
     /* Check command line args */
     if (argc != 2) {
-      fprintf(stderr, "usage: %s <port>\n", argv[0]);
-      exit(1);
+	fprintf(stderr, "usage: %s <port>\n", argv[0]);
+	exit(1);
     }
 
+    Signal(SIGCHLD, sigchld_handler);
     listenfd = Open_listenfd(argv[1]);
     while (1) {
-    clientlen = sizeof(clientaddr);
-    connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen); //line:netp:tiny:accept
-        Getnameinfo((SA *) &clientaddr, clientlen, hostname, MAXLINE, 
-                    port, MAXLINE, 0);
-    printf("Accepted connection from (%s, %s)\n", hostname, port);
-    doit(connfd);                                             //line:netp:tiny:doit
-    Close(connfd);                                            //line:netp:tiny:close
+        clientlen = sizeof(clientaddr);
+        connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen); //line:netp:tiny:accept
+        printf("Accepted connection from (%s, %s)\n", hostname, port);
+        if (Fork() == 0) { 
+            Close(listenfd); /* Child closes its listening socket */
+            doit(connfd);                                             //line:netp:tiny:doit
+            Close(connfd);   /* Child closes connection with client */ //line:conc:echoserverp:childclose
+            exit(0);         /* Child exits */
+	}
+        Close(connfd);                                            //line:netp:tiny:close
     }
 }
 /* $end tinymain */
