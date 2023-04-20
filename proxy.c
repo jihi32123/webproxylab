@@ -40,15 +40,16 @@ int main(int argc, char **argv)
       Pthread_create(&tid, NULL, thread, connfd);
     }
 }
-void *thread(void *vargp){
-    int connfd = *((int *)vargp);
+void *thread(void *vargp){            // 스레드를 이용해서 동시성 구현
+    int connfd = *((int *)vargp);     // 인자로 소켓 식별자 받기
     printf("connect\n");
-    Pthread_detach(pthread_self());
-    Free(vargp);
-    doit(connfd);  
-    Close(connfd);   
+    Pthread_detach(pthread_self());  // 스레드 분리 (스레드가 종료되었을 때  자원 자동 해제)
+    Free(vargp);                     // 동적 할당한 인자 반환하기
+    doit(connfd);                    // 주요 로직 실행하기
+    Close(connfd);                   // 로직이 끝나면 소켓 닫기 
     return NULL;
 }
+
 /* 주요 로직 */
 void doit(int connfd){
   /* 1. 클라이언트한테 받은 요청의 헤더를 읽어서 저장하자  */   
@@ -64,27 +65,27 @@ void doit(int connfd){
 
   /* 2. 받은 헤더 URI를 파싱하자 */
   char *end_host[MAXLINE], *end_port[MAXLINE], *end_uri[MAXLINE];   // 파싱해서 저장할 정보들
-  parse_uri(uri, end_host, end_port);                        // 파싱하기
+  parse_uri(uri, end_host, end_port);                               // 파싱하기
 
   /* 3. 파싱한 URI를 재구성해서 서버에 전송하고 바로 전달하자 */
-  send_request(end_host, end_port, uri, connfd);
+  send_request(end_host, end_port, uri, connfd);                   
 }
 
 /* 헤더 처리하는 함수 */
-void read_requesthdrs(rio_t *rp) 
+void read_requesthdrs(rio_t * rio) 
 {
-  char buf[MAXLINE];
+  char buf[MAXLINE];                    // 읽은 헤더를 임시 저장 할  변수
 
-  Rio_readlineb(rp, buf, MAXLINE);
+  Rio_readlineb(rio, buf, MAXLINE);     // 한 줄 읽기  
   printf("%s", buf);
-  while(strcmp(buf, "\r\n")) {          //line:netp:readhdrs:checkterm
-    Rio_readlineb(rp, buf, MAXLINE);
+  while(strcmp(buf, "\r\n")) {          //  반복문을 돌면서 글을 읽기
+    Rio_readlineb(rio, buf, MAXLINE);
     printf("%s", buf);
   }
   return;
 }
 
-/* $begin parse_uri */
+/* uri 파싱하기 */
 int parse_uri(char *uri, char *host, char *port) 
 {
   // char *ptr;
@@ -120,42 +121,39 @@ void send_request(char *host, char *port, char *uri, int fd)
   int clientfd; // 소켓 식별자
   char buf[MAXLINE]; // 값 저장할 애들
 
-  // static char data[MAXLINE] = ""; //home.html 저장할 공간 
-  // static int check = 0;
-  char data[MAX_OBJECT_SIZE] = ""; //home.html 저장할 공간 
-  printf("host = <%s>, port =<%s>, url =<%s>\n", host, port, uri);
+  char data[MAX_OBJECT_SIZE] = ""; // 캐시 데이터를 임시 저장할 장소
   
-  int c;
-  if(c = find_cache(proxy_cache,uri,data)){
-    printf("uri = %s\n", uri);
-    printf("result find = %d", c);
-    printf("=======캐시!===========\n");
-    Rio_writen(fd, data, MAXLINE); // 캐시 버퍼 그대로 보내주기 
+  // 캐시에 값을 찾으면?
+  if(find_cache(proxy_cache,uri,data)){
+    Rio_writen(fd, data, MAXLINE); // 캐시 값 그대로 보내주기 
   }
-  else{
-    /* Print the HTTP response headers */
-    clientfd = Open_clientfd(host, port);
-    sprintf(buf, "GET /%s HTTP/1.1\r\n\r\n", uri);
-    Rio_writen(clientfd, buf, strlen(buf));
-    
+  // 캐시에 값을 못 찾으면?
+  else{ 
+    clientfd = Open_clientfd(host, port);           // 서버랑 연결할 클라이언트 소켓 생성 
+    sprintf(buf, "GET /%s HTTP/1.1\r\n\r\n", uri);  // 헤더 생성
+    Rio_writen(clientfd, buf, strlen(buf));         // 헤더 보내기
+  
     rio_t rio;
     size_t n;
-    Rio_readinitb(&rio, clientfd);                   
-    // 이미지 파일의 경우 strlen())을 사용하면 안됨 그래서 파일을 따로 받고 호출함)
-    int cache_check = 1;
+    Rio_readinitb(&rio, clientfd);                  // 파일 보내기  
+    
+    // 서버 응답 확인하고 클라이언트에 보내주기
+    int cache_size_check = 1; // 캐시의 크기가 넘는지 확인하기
     while ((n = Rio_readlineb(&rio, buf, MAXLINE))!= 0) {
-      printf("%s \n", buf);
-      Rio_writen(fd, buf, n);
+      Rio_writen(fd, buf, n); // 응답 바로 클라이언트에 보내주기
       
+      // 응답 값의 합이 최소 캐시 오브젝트 사이즈보다 작은지 확인하기
       if(strlen(data) + strlen(buf) < MAX_OBJECT_SIZE)
-        strcat(data, buf); // 저장할 데이터
+        strcat(data, buf); // 저장할 데이터를 data에 계속 더하기
       else
-        cache_check = 0;
+        cache_size_check = 0;
     }
-    Close(clientfd); //line:netp:echoclient:close
-    if(cache_check == 1) 
+    Close(clientfd); 
+
+    // 응답 사이즈가 최대 사이즈보다 작으면 캐시에 값 넣기
+    if(cache_size_check == 1) 
       insert_cache(proxy_cache, uri, data);
-  }
+    }
 
 }
 /* $end proxy */

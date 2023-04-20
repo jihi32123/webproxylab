@@ -1,25 +1,31 @@
-# include "cache.h"
+/* $begin sharing */
+#include "csapp.h"
+#define N 2
+void *thread(int vargp, int a);
 
-int main(){
-    cache *c = new_cache();
-    printf(">> insert_cache\n");
-    char key1[] = "key1";
-    char value1[] = "value1";
-    insert_cache(c, key1, value1);
+char **ptr;  /* Global variable */ //line:conc:sharing:ptrdec
 
-    char key2[] = "key2";
-    char value2[] = "value3";
-    insert_cache(c, key2, value2);
+int main() 
+{
+    int i;  
+    pthread_t tid;
+    char *msgs[N] = {
+	"Hello from foo",  
+	"Hello from bar"   
+    };
 
-    char key3[] = "key3";
-    char value3[] = "value3";
-    insert_cache(c, key3, value3);
-
-    printf(">> print_csache\n");
-    print_cache(c);
-    char buf[100000];
-    if(find_cache(c, &key3, &buf)){
-        printf("%s \n",buf);
-    }
-    return 0;
+    ptr = msgs; 
+    for (i = 0; i < N; i++)  
+        Pthread_create(&tid, NULL, thread, i, 2); 
+    Pthread_exit(NULL); 
 }
+
+void *thread(int vargp, int b) 
+{
+    int myid = vargp;
+    printf("%d\n", b);
+    static int cnt = 0; //line:conc:sharing:cntdec
+    printf("[%d]: %s (cnt=%d)\n", myid, ptr[myid], ++cnt); //line:conc:sharing:stack
+    return NULL;
+}
+/* $end sharing */
